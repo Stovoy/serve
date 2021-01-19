@@ -97,6 +97,8 @@ const getHelp = () => chalk`
 
       --ssl-key                           Optional path to the SSL/TLS certificate\'s private key
 
+      --password                          Optional password for http auth
+
   {bold ENDPOINTS}
 
       Listen endpoints (specified by the {bold --listen} or {bold -l} options above) instruct {cyan serve}
@@ -184,10 +186,22 @@ const startEndpoint = (endpoint, config, args, previous) => {
 	const clipboard = args['--no-clipboard'] !== true;
 	const compress = args['--no-compression'] !== true;
 	const httpMode = args['--ssl-cert'] && args['--ssl-key'] ? 'https' : 'http';
+	const password = args['--password'];
 
 	const serverHandler = async (request, response) => {
 		if (args['--cors']) {
 			response.setHeader('Access-Control-Allow-Origin', '*');
+		}
+
+		if (password) {
+			const auth = request.headers.authorization;
+			const passwordBase64 = Buffer.from(password).toString('base64');
+			if (auth !== `Basic ${passwordBase64}`) {
+				response.writeHead(401, {
+					'WWW-Authenticate': 'Basic realm="stovoy.tech", charset="UTF-8"'
+				}).end();
+				return;
+			}
 		}
 		if (compress) {
 			await compressionHandler(request, response);
@@ -374,6 +388,7 @@ const loadConfig = async (cwd, entry, args) => {
 			'--cors': Boolean,
 			'--ssl-cert': String,
 			'--ssl-key': String,
+			'--password': String,
 			'-h': '--help',
 			'-v': '--version',
 			'-l': '--listen',
